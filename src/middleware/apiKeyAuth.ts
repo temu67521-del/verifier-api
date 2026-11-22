@@ -60,8 +60,8 @@ export const validateApiKey = async (incomingKey: string) => {
 
 // Middleware to check API key
 export const apiKeyAuth = async (req: Request, res: Response, next: NextFunction) => {
-  // Skip API key check for certain routes
-  if (req.path === '/' || req.path === '/health' || req.path.startsWith('/admin')) {
+  // Skip API key check for public routes and website
+  if (req.path === '/' || req.path === '/health' || req.path === '/app' || req.path === '/dashboard' || req.path.startsWith('/admin')) {
     return next();
   }
 

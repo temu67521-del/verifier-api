@@ -18,6 +18,7 @@ import { verifyImageHandler } from "./services/verifyImage";
 import { requestLogger, initializeStatsCache } from './middleware/requestLogger';
 import { apiKeyAuth } from './middleware/apiKeyAuth';
 import { prisma, disconnectPrisma } from './utils/prisma';
+import { getLandingPageHtml } from './utils/landingPage';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -81,8 +82,15 @@ app.get('/health', (req: Request, res: Response) => {
     res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
-// Root endpoint
+// Root endpoint: Serves interactive UI website for web browsers, JSON for API clients
 app.get('/', (req: Request, res: Response) => {
+    const acceptHeader = req.headers.accept || '';
+    if (acceptHeader.includes('text/html')) {
+        res.setHeader('Content-Type', 'text/html; charset=utf-8');
+        res.send(getLandingPageHtml());
+        return;
+    }
+
     res.json({
         name: 'Payment Verification API',
         version: '2.1.0',
@@ -97,6 +105,17 @@ app.get('/', (req: Request, res: Response) => {
             '/verify-image'
         ]
     });
+});
+
+// Explicit routes for the web dashboard / website
+app.get('/app', (req: Request, res: Response) => {
+    res.setHeader('Content-Type', 'text/html; charset=utf-8');
+    res.send(getLandingPageHtml());
+});
+
+app.get('/dashboard', (req: Request, res: Response) => {
+    res.setHeader('Content-Type', 'text/html; charset=utf-8');
+    res.send(getLandingPageHtml());
 });
 
 // Global error handler

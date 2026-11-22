@@ -47,6 +47,24 @@ describe('Payment Verification API Tests', () => {
             assert.ok(body.endpoints.includes('/verify'));
             assert.ok(body.endpoints.includes('/verify-cbe'));
         });
+
+        it('GET / with Accept: text/html returns the interactive website', async () => {
+            const res = await fetch(`${baseUrl}/`, {
+                headers: { 'Accept': 'text/html,application/xhtml+xml' }
+            });
+            assert.equal(res.status, 200);
+            assert.ok(res.headers.get('content-type')?.includes('text/html'));
+            const html = await res.text();
+            assert.ok(html.includes('Ethiopian Payment Verification API'));
+            assert.ok(html.includes('Live Verification Playground'));
+        });
+
+        it('GET /app returns the interactive website', async () => {
+            const res = await fetch(`${baseUrl}/app`);
+            assert.equal(res.status, 200);
+            const html = await res.text();
+            assert.ok(html.includes('Verifier API'));
+        });
     });
 
     describe('Admin Endpoints', () => {
