@@ -1,5 +1,6 @@
 import axios, { AxiosError } from "axios";
 import * as cheerio from "cheerio";
+import https from "https";
 import logger from '../utils/logger';
 
 export interface TelebirrReceipt {
@@ -321,10 +322,21 @@ function parseTelebirrJson(jsonData: any): TelebirrReceipt | null {
  */
 async function fetchFromPrimarySource(reference: string, baseUrl: string): Promise<TelebirrReceipt | null> {
     const url = `${baseUrl}${reference}`;
+    const httpsAgent = new https.Agent({ rejectUnauthorized: false });
 
     try {
         logger.info(`Attempting to fetch Telebirr receipt from primary source: ${url}`);
-        const response = await axios.get(url, { timeout: 30000 }); // 30 second timeout to be safe
+        const response = await axios.get(url, {
+            httpsAgent,
+            headers: {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
+                'Accept-Language': 'en-US,en;q=0.9',
+                'Cache-Control': 'no-cache',
+                'Pragma': 'no-cache'
+            },
+            timeout: 30000
+        }); // 30 second timeout to be safe
         logger.debug(`Received response with status: ${response.status}`);
 
         const extractedData = scrapeTelebirrReceipt(response.data);
