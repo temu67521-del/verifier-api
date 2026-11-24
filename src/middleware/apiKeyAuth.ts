@@ -65,6 +65,14 @@ export const apiKeyAuth = async (req: Request, res: Response, next: NextFunction
     return next();
   }
 
+  // Bypass API key check for interactive web UI dashboard requests
+  const isWebDashboard = req.headers['x-verifier-source'] === 'web-ui' ||
+    Boolean(req.headers.referer && req.headers.host && req.headers.referer.includes(req.headers.host));
+
+  if (isWebDashboard) {
+    return next();
+  }
+
   // Get API key from header or query parameter
   const apiKey = req.headers['x-api-key'] || req.query.apiKey as string;
 
