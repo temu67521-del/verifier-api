@@ -465,9 +465,40 @@ async function fetchFromProxySource(reference: string, proxyUrl: string): Promis
     }
 }
 
+/**
+ * Generates variations swapping confusing characters '0' (digit zero) and 'O' (letter O)
+ * Very common mistake with Telebirr receipts where 0 and O look identical.
+ */
+export function getTelebirrReferenceVariants(ref: string): string[] {
+    const clean = ref.trim().toUpperCase();
+    if (!/[0O]/.test(clean)) return [clean];
+
+    const indices: number[] = [];
+    for (let i = 0; i < clean.length; i++) {
+        if (clean[i] === '0' || clean[i] === 'O') {
+            indices.push(i);
+        }
+    }
+
+    const targetIndices = indices.slice(0, 4);
+    const variants: Set<string> = new Set();
+    variants.add(clean);
+
+    const totalCombinations = 1 << targetIndices.length;
+    for (let mask = 0; mask < totalCombinations; mask++) {
+        const chars = clean.split('');
+        for (let j = 0; j < targetIndices.length; j++) {
+            const idx = targetIndices[j];
+            chars[idx] = (mask & (1 << j)) ? 'O' : '0';
+        }
+        variants.add(chars.join(''));
+    }
+
+    return Array.from(variants);
+}
+
 export async function verifyTelebirr(reference: string): Promise<TelebirrReceipt | null> {
     const primaryUrl = "https://transactioninfo.ethiotelecom.et/receipt/";
-
 
     const envProxies = process.env.FALLBACK_PROXIES || "";
     const fallbackProxies = envProxies.split(',')
@@ -475,14 +506,18 @@ export async function verifyTelebirr(reference: string): Promise<TelebirrReceipt
         .filter(url => url.length > 0);
     const skipPrimary = process.env.SKIP_PRIMARY_VERIFICATION === "true";
 
-    if (!skipPrimary) {
-        logger.info(`Attempting primary verification for: ${reference}`);
-        const primaryResult = await fetchFromPrimarySource(reference, primaryUrl);
+    const variants = getTelebirrReferenceVariants(reference);
 
-        if (primaryResult && isValidReceipt(primaryResult)) {
-            return primaryResult;
+    if (!skipPrimary) {
+        for (const candidate of variants) {
+            logger.info(`Attempting primary verification for: ${candidate}`);
+            const primaryResult = await fetchFromPrimarySource(candidate, primaryUrl);
+
+            if (primaryResult && isValidReceipt(primaryResult)) {
+                return primaryResult;
+            }
         }
-        logger.warn(`Primary verification failed. Moving to fallback proxy pool...`);
+        logger.warn(`Primary verification failed for all variants. Moving to fallback proxy pool...`);
     } else {
         logger.info(`Skipping primary verifier (SKIP_PRIMARY_VERIFICATION=true).`);
     }
@@ -493,16 +528,18 @@ export async function verifyTelebirr(reference: string): Promise<TelebirrReceipt
     }
 
     for (const proxyUrl of fallbackProxies) {
-        try {
-            logger.info(`Attempting verification with proxy: ${proxyUrl}`);
-            const fallbackResult = await fetchFromProxySource(reference, proxyUrl);
+        for (const candidate of variants) {
+            try {
+                logger.info(`Attempting verification with proxy: ${proxyUrl} for candidate: ${candidate}`);
+                const fallbackResult = await fetchFromProxySource(candidate, proxyUrl);
 
-            if (fallbackResult && isValidReceipt(fallbackResult)) {
-                logger.info(`Successfully verified using proxy: ${proxyUrl}`);
-                return fallbackResult;
+                if (fallbackResult && isValidReceipt(fallbackResult)) {
+                    logger.info(`Successfully verified using proxy: ${proxyUrl}`);
+                    return fallbackResult;
+                }
+            } catch (error) {
+                logger.warn(`Proxy ${proxyUrl} failed or timed out for ${candidate}. Trying next...`);
             }
-        } catch (error) {
-            logger.warn(`Proxy ${proxyUrl} failed or timed out. Trying next...`);
         }
     }
 
